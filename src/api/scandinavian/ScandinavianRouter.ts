@@ -13,10 +13,13 @@ export const scandinavianRouter: Router = express.Router();
 import OpenAI from "openai";
 import sendMessage from "@/api/scandinavian/sendTg";
 import randomStoreTheme from "@/api/scandinavian/randomStoreTheme";
-import generateStory from "@/api/scandinavian/generateStory";
+import garrildStory from "@/api/scandinavian/garrildStory";
 import generatePhoto from "@/api/scandinavian/generatePhoto";
+import fradisStory from "@/api/scandinavian/fradisStory";
 
 const openai = new OpenAI({ apiKey: env.GPT_KEY });
+
+export type Character = "fradis" | "garrild";
 
 scandinavianRegistry.registerPath({
   method: "get",
@@ -25,18 +28,27 @@ scandinavianRegistry.registerPath({
   responses: createApiResponse(z.null(), "Success"),
 });
 
+const list: Character[] = ["fradis", "garrild"];
+const randomCharacter = ():Character => list[Math.floor(Math.random() * list.length)];
+
+const characters = {
+  fradis: fradisStory,
+  garrild: garrildStory,
+}
+
 scandinavianRouter.get("/", async (_req: Request, res: Response) => {
   try {
     const theme = randomStoreTheme();
     const isPhoto = Math.random() > 0.3;
 
-    const story = await generateStory(theme, isPhoto);
+    const mainCharacter = randomCharacter();
+    const story = await characters[mainCharacter](theme, isPhoto);
 
     if (!story) {
       throw new Error("Failed to generate story");
     }
 
-    const image = isPhoto ? await generatePhoto(story) : null;
+    const image = isPhoto ? await generatePhoto(story, mainCharacter) : null;
 
     const tgResponse = await sendMessage(story, image);
 
@@ -45,7 +57,8 @@ scandinavianRouter.get("/", async (_req: Request, res: Response) => {
       story,
       theme,
       isPhoto,
-      image
+      image,
+      mainCharacter
     });
     return handleServiceResponse(serviceResponse, res);
   } catch (error) {
